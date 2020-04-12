@@ -129,7 +129,7 @@ int main() {
                     }
                     else{
                         flag = true;
-                        fd = open(args[k+1] , O_WRONLY | O_CREAT , 0666);
+                        fd = open(args[k+1] , O_WRONLY | O_CREAT | O_TRUNC, 0666);
                         args[k] = NULL;
                         dup2(fd , 1);
                     }
@@ -198,7 +198,7 @@ int main() {
                         int len = strlen(args[k]) - 1;
                         strncpy(s , args[k] , len);
                         s[k+1] = NULL;
-                        fd = open(args[k + 1], O_WRONLY | O_CREAT , 0666);
+                        fd = open(args[k + 1], O_WRONLY | O_CREAT | O_TRUNC, 0666);
                         args[k] = NULL;
                         filenum = atoi(s);
                         tempnum = dup(filenum);
@@ -493,7 +493,7 @@ int main() {
                         }
                         else{
                             flag = true;
-                            fd = open(args1[k+1] , O_WRONLY | O_CREAT , 0666);
+                            fd = open(args1[k+1] , O_WRONLY | O_CREAT | O_TRUNC, 0666);
                             args1[k] = NULL;
                             dup2(fd , 1);
                         }
@@ -564,7 +564,7 @@ int main() {
                             int len = strlen(args1[k]) - 1;
                             strncpy(s , args1[k] , len);
                             s[k+1] = NULL;
-                            fd = open(args1[k + 1], O_WRONLY | O_CREAT , 0666);
+                            fd = open(args1[k + 1], O_WRONLY | O_CREAT | O_TRUNC, 0666);
                             args1[k] = NULL;
                             filenum = atoi(s);
                             tempnum = dup(filenum);
@@ -573,6 +573,7 @@ int main() {
                         }
                     }
                 }
+
                 if(!flag && !flag1 && !flagsocout && !flag2 && !flagsocin && !flaga){
                     bool flagcc = false;
                     for (int k = 0; k < length[i+1] - length[i] - 1; ++k) {

@@ -6,6 +6,7 @@
 #include <netinet/in.h>
 #include <pthread.h>
 
+//final version
 struct Pipe {
     int fd_send;
     int fd_recv;
@@ -15,7 +16,7 @@ void *handle_chat(void *data) {
     struct Pipe *pipe = (struct Pipe *)data;
     char buffer[1048600];
     char buffertemp1[1048600];
-    int i, j, k , flag = 0;
+    int i = 0, j, k , flag = 0;
     int send_check;
     int length;
     ssize_t len;
@@ -23,34 +24,50 @@ void *handle_chat(void *data) {
         length = strlen(buffertemp1);
         memcpy(buffertemp1 + length, buffer , len);
         for(i = 0; i < strlen(buffertemp1) ; ++i){
+            flag = 0;
             if(buffertemp1[i] == '\n'){
+                flag = 0;
                 char buffertemp[1048600] = "Message:";
+                //以换行为分割符进行消息分割
                 for(j = 0 , k = 8; j < i ; ++j){
                     buffertemp[k++] = buffertemp1[j];
                 }
                 buffertemp[k] = '\n';
-                //检查是否发送完全
+                //检查是否发送完全,处理可能的send阻塞
                 send_check = send(pipe->fd_recv, buffertemp,  strlen(buffertemp), 0);
+                //printf("Bytes: %d ", send_check);
                 while (strlen(buffertemp) != send_check){
                     int i1 , i2 = 0;
+                    char buffertemp3[1048600];
+                    memset(buffertemp3, '\0', 1048600);
                     for(i1 = send_check ; i1 < strlen(buffertemp) ; ++i1){
-                        buffertemp[i2++] = buffertemp[i1];
-                        buffertemp[i1] = '\0';
+                        buffertemp3[i2++] = buffertemp[i1];
                     }
+                    memset(buffertemp, '\0', 1048600);
+                    memcpy(buffertemp, buffertemp3, 1048600);
                     send_check = send(pipe->fd_recv , buffertemp , strlen(buffertemp) , 0);
                 }
                 int l1 = 0;
                 int l;
+                char buffertemp2[1048600];
+                memset(buffertemp2, '\0', 1048600);
                 for(l = i + 1 ; l < strlen(buffertemp1) ; ++l){
-                    buffertemp1[l1++] = buffertemp1[l];
-                    buffertemp1[l] = '\0';
+                    buffertemp2[l1++] = buffertemp1[l];
                     flag = 1;
                 }
-                if(flag)    i = 0;
+                memset(buffertemp1, '\0', 1048600);
+                memcpy(buffertemp1, buffertemp2, 1048600);
+                //i = 0;
+                if (strlen(buffertemp1) == 0)   memset(buffertemp1, '\0', 1048600);
+                if(flag)    i = -1;
                 else{
-                    for(int n = 0 ; n < i + 1 ; ++n){
+                    /*for(int n = 0 ; n < i + 1 ; ++n){
                         buffertemp1[n] = '\0';
-                    }
+                        //memset(buffertemp1, '\0', 1048600);
+
+                    }*/
+                    memset(buffertemp1, '\0', 1048600);
+                    i = -1;
                 }
             }
         }

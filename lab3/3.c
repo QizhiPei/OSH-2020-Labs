@@ -12,18 +12,19 @@
 #include <string>
 
 #define MAX_CLIENTS 32
-#define BUFFER_SIZE 1024 * 1024 + 10
+#define BUFFER_SIZE 1024 * 1024 + 20
 using namespace std;
 int fd_array[MAX_CLIENTS]={0};
 
 struct MessageReader {
     vector<string> msgs;
-    //char buffer[BUFFER_SIZE];
     int feed(string buffertemp1) {
         int i, j = 0, k;
         int flag = 0;
+        //int flagi;
         for (i = 0; i < buffertemp1.length(); ++i) {
             if (buffertemp1[i] == '\n') {
+                //flagi = i;
                 char buffertemp[BUFFER_SIZE] = "Message:";
                 for (k = 8; j < i; ++j) {
                     buffertemp[k++] = buffertemp1[j];
@@ -68,11 +69,13 @@ struct Client {
                 for(int j = i + 1; j < l ; ++j){
                     buffertemp2[i1++] = buffertemp1[j];
                 }
+                //保留未发送的不完整的消息
                 memset(buffertemp1, '\0', sizeof(buffertemp1));
                 memcpy(buffertemp1, buffertemp2, sizeof(buffertemp2));
-            } else if(flag == 0){
+            } else if(flag == 0){//只传来一部分消息
             }
             else{
+                //清空发送缓存
                 memset(buffertemp1, '\0', sizeof(buffertemp1));
             }
             return 0;
@@ -83,16 +86,17 @@ struct Client {
 
     }
     void send_msg() {
-        char *msg = (char *)send_queue.data();
-        ssize_t len = send(client_fd, msg , strlen(msg), 0);
-        //send_queue.clear();
-        send_queue = send_queue.substr(len, send_queue.length() - len);
+        //利用循环处理send可能只发送一部分数据的情况，每次都确保将队列中的内容完全发送
+        while(!send_queue.empty()) {
+            char *msg = (char *) send_queue.data();
+            ssize_t len = send(client_fd, msg, strlen(msg), 0);
+            send_queue = send_queue.substr(len, send_queue.length() - len);
+        }
     };
 } Clients[MAX_CLIENTS];
 
 
 int main(int argc, char **argv) {
-    //int port = atoi("6666");
     int port = atoi(argv[1]);
     int fd;
     int fd_new;
@@ -124,7 +128,7 @@ int main(int argc, char **argv) {
 
     char buffer[1024 * 1024] = "Message:";
     int temp;
-    fd_set read_fd, temp_fd;//read_fd为需要监视的描述符集
+    fd_set read_fd;//read_fd为需要监视的描述符集
     fd_max = 1;
     printf("wait for connection\n");
     while (1) {
@@ -184,7 +188,7 @@ int main(int argc, char **argv) {
                     for (auto &&msg : Clients[i].reader.msgs) {
                         for (int j = 0; j < MAX_CLIENTS; ++j) {
                             if (j != i && Clients[j].client_fd != 0) {
-                                Clients[j].send_queue += msg;//存疑
+                                Clients[j].send_queue += msg;
                             }
                         }
                     }
@@ -193,7 +197,9 @@ int main(int argc, char **argv) {
                         printf("client %d exit\n", i + 1);
                         FD_CLR(Clients[i].client_fd, &read_fd);
                         Clients[i].client_fd = 0;
-                        continue;//0.0
+                        Clients[i].reader.msgs.clear();
+                        memset(Clients[i].buffertemp1, '\0' , sizeof(Clients[i].buffertemp1));
+                        continue;
                     }
                 }
 
@@ -207,4 +213,4 @@ int main(int argc, char **argv) {
     }
     return 0;
 }
-
+//final version

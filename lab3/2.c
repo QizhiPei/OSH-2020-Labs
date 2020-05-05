@@ -9,8 +9,9 @@
 #include <iostream>
 
 #define MAX_CLIENT 32
+#define BUFFER_SIZE 1024 * 1024 + 20
 using namespace std;
-char msg_model [1024 * 1024 * 2];
+char msg_model [BUFFER_SIZE];
 
 struct  Client{
     pthread_mutex_t send_mutex = PTHREAD_MUTEX_INITIALIZER;
@@ -20,13 +21,12 @@ struct  Client{
 }Clients[MAX_CLIENT];
 
 int client_num = 0;
-//int fd_temp[MAX_CLIENT] = {0};
 
 void *handle_recv(void *data) {
     int fd =*(int *)data;
     int fd1;
-    char buffer[1024 * 1024 * 2];
-    char buffertemp1[1024 * 1024 * 2];
+    char buffer[BUFFER_SIZE];
+    char buffertemp1[BUFFER_SIZE];
     int i, j, k , flag = 0;
     int length;
     ssize_t len;
@@ -36,57 +36,63 @@ void *handle_recv(void *data) {
             perror("accept");
             return NULL;
         }
-        for(i = 0; i < MAX_CLIENT ; ++i){
-            if(Clients[i].client_fd == 0){
+        for (i = 0; i < MAX_CLIENT; ++i) {
+            if (Clients[i].client_fd == 0) {
                 Clients[i].client_fd = fd1;
                 break;
             }
         }
-        while ((len = recv(fd1, buffer , 1024 * 1024, 0)) > 0){
+        while ((len = recv(fd1, buffer, 1024 * 1024, 0)) > 0) {
             length = strlen(buffertemp1);
             memcpy(buffertemp1 + length, buffer, len);
             for (i = 0; i < strlen(buffertemp1); ++i) {
+                flag = 0;
                 if (buffertemp1[i] == '\n') {
-                    char buffertemp[1024 * 1024 * 2] = "Message:";
+                    flag = 0;
+                    char buffertemp[BUFFER_SIZE] = "Message:";
                     for (j = 0, k = 8; j < i; ++j) {
                         buffertemp[k++] = buffertemp1[j];
                     }
                     buffertemp[k] = '\n';
                     for (int l = 0; l < MAX_CLIENT; ++l) {//改动
-                        if(Clients[l].client_fd != 0 && Clients[l].client_fd != fd1){
+                        if (Clients[l].client_fd != 0 && Clients[l].client_fd != fd1) {
                             pthread_mutex_lock(&Clients[l].send_mutex);
                             Clients[l].send_queue.push(buffertemp);
                             pthread_cond_signal(&Clients[l].cv);
-                            //cout<<Clients[l].send_queue.back();
                             pthread_mutex_unlock(&Clients[l].send_mutex);
                         }
                     }
                     int l1 = 0;
                     int l;
+                    char buffertemp2[BUFFER_SIZE];
+                    memset(buffertemp2, '\0', BUFFER_SIZE);
                     for (l = i + 1; l < strlen(buffertemp1); ++l) {
-                        buffertemp1[l1++] = buffertemp1[l];
-                        buffertemp1[l] = '\0';
+                        buffertemp2[l1++] = buffertemp1[l];
+                        //buffertemp1[l] = '\0';
                         flag = 1;
                     }
-                    if (flag) i = 0;//若成功读取了一个以换行符结尾的消息，且还有后续消息，则重置i
+                    memset(buffertemp1, '\0', BUFFER_SIZE);
+                    memcpy(buffertemp1, buffertemp2, BUFFER_SIZE);
+                    if (strlen(buffertemp1) == 0) memset(buffertemp1, '\0', BUFFER_SIZE);
+                    if (flag) i = -1;//若成功读取了一个以换行符结尾的消息，且还有后续消息，则重置i
                     else {//若当前buffertemp1中只有一条完整的消息
-                        for (int n = 0; n < i + 1; ++n) {
-                            buffertemp1[n] = '\0';
-                        }
+                        /*for (int n = 0; n < i + 1; ++n) {
+                            buffertemp1[n] = '\0';*/
+                        memset(buffertemp1, '\0', BUFFER_SIZE);
+                        i = -1;
                     }
                 }
             }
         }
-        if(len <= 0){
-            for(int i = 0; i < MAX_CLIENT; ++i){
-                if(fd1 == Clients[i].client_fd){
+        if (len <= 0) {
+            for (int i = 0; i < MAX_CLIENT; ++i) {
+                if (fd1 == Clients[i].client_fd) {
                     Clients[i].client_fd = 0;
-                    //--client_num;
                 }
             }
         }
-
     }
+    return NULL;
 }
 
 
@@ -95,22 +101,25 @@ void *handle_send(void *data) {
     int send_check;
     while(1){
         pthread_mutex_lock(&c->send_mutex);
-        char msg[1024 * 1024 * 2];
+        char msg[BUFFER_SIZE];
+        memset(msg, '\0', BUFFER_SIZE);
         while (c->send_queue.empty()){
-            //cout<<"hhh";
             pthread_cond_wait(&c->cv, &c->send_mutex);
         }
-        //memcpy(msg, c.send_queue.front() , strlen(c.send_queue.front()));
         strcpy(msg , c->send_queue.front());
         c->send_queue.pop();
         pthread_mutex_unlock(&c->send_mutex);
         send_check = send(c->client_fd, msg,  strlen(msg), 0);
         while (strlen(msg) != send_check) {
             int i1, i2 = 0;
+            char msg1[BUFFER_SIZE];
+            memset(msg1, '\0', BUFFER_SIZE);
             for (i1 = send_check; i1 < strlen(msg); ++i1) {
-                msg[i2++] = msg[i1];
-                msg[i1] = '\0';
+                msg1[i2++] = msg[i1];
+                //msg[i1] = '\0';
             }//将已发送的部分用未发送的部分覆盖
+            memset(msg, '\0', BUFFER_SIZE);
+            memcpy(msg, msg1, BUFFER_SIZE);
             send_check = send(c->client_fd, msg, strlen(msg), 0);
         }
     }
@@ -151,3 +160,5 @@ int main(int argc, char **argv) {
     }
     return 0;
 }
+
+//final version

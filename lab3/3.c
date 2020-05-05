@@ -86,12 +86,11 @@ struct Client {
 
     }
     void send_msg() {
-        //利用循环处理send可能只发送一部分数据的情况，每次都确保将队列中的内容完全发送
-        while(!send_queue.empty()) {
+        if(!send_queue.empty()) {
             char *msg = (char *) send_queue.data();
             ssize_t len = send(client_fd, msg, strlen(msg), 0);
             send_queue = send_queue.substr(len, send_queue.length() - len);
-        }
+        }//保存可能未发送的子串，保证非阻塞io下send可以完全发送
     };
 } Clients[MAX_CLIENTS];
 
@@ -129,11 +128,13 @@ int main(int argc, char **argv) {
     char buffer[1024 * 1024] = "Message:";
     int temp;
     fd_set read_fd;//read_fd为需要监视的描述符集
+    fd_set write_fd;//监听客户端是否可写，保证了非阻塞io下send可以完全发送
     fd_max = 1;
     printf("wait for connection\n");
     while (1) {
         //handle accept
         FD_ZERO(&read_fd);
+        FD_ZERO(&write_fd);
         //read_fd = temp_fd;
         //add server
         FD_SET(fd, &read_fd);
@@ -145,13 +146,14 @@ int main(int argc, char **argv) {
             if (Clients[i].client_fd != 0) {
                 fcntl(Clients[i].client_fd, F_SETFL, fcntl(Clients[i].client_fd, F_GETFL, 0) | O_NONBLOCK); // 将客户端的套接字设置成非阻塞
                 FD_SET(Clients[i].client_fd, &read_fd);
+                FD_SET(Clients[i].client_fd, &write_fd);
                 if (fd_max < Clients[i].client_fd) {
                     fd_max = Clients[i].client_fd;
                 }
             }
         }
 
-        temp = select(fd_max + 1, &read_fd, NULL, NULL, NULL);
+        temp = select(fd_max + 1, &read_fd, &write_fd, NULL, NULL);
         if (temp < 0) {
             perror("select");
             continue;
@@ -206,7 +208,7 @@ int main(int argc, char **argv) {
             }
         }
         for (i = 0; i < MAX_CLIENTS; ++i) {
-            if (Clients[i].client_fd != 0) {
+            if (FD_ISSET(Clients[i].client_fd, &write_fd) && Clients[i].client_fd != 0) {
                 Clients[i].send_msg();
             }
         }
